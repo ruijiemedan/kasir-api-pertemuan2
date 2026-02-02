@@ -14,26 +14,21 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config adalah tempat menyimpan setting aplikasi
-// Seperti buku pengaturan restoran
 type Config struct {
-	Port   string `mapstructure:"PORT"`    // Port berapa server jalan
-	DBConn string `mapstructure:"DB_CONN"` // Alamat database
+	Port   string `mapstructure:"PORT"`
+	DBConn string `mapstructure:"DB_CONN"`
 }
 
 func main() {
-	// ===== BAGIAN 1: BACA SETTING (CONFIG) =====
-	// Viper adalah alat untuk baca file .env
+	// Load config dari .env
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Cek apakah ada file .env
 	if _, err := os.Stat(".env"); err == nil {
 		viper.SetConfigFile(".env")
 		_ = viper.ReadInConfig()
 	}
 
-	// Ambil setting dari .env
 	config := Config{
 		Port:   viper.GetString("PORT"),
 		DBConn: viper.GetString("DB_CONN"),
@@ -43,49 +38,64 @@ func main() {
 	fmt.Println("   Port:", config.Port)
 	fmt.Println("   DB Connected")
 
-	// ===== BAGIAN 2: HUBUNGKAN KE DATABASE =====
-	// Buka pintu ke gudang data (database)
+	// Setup database
 	db, err := database.InitDB(config.DBConn)
 	if err != nil {
-		log.Fatal("❌ Failed to initialize database:", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close() // Tutup koneksi saat program selesai
+	defer db.Close()
 
-	// ===== BAGIAN 3: DEPENDENCY INJECTION =====
-	// Ini seperti Manager yang kenalkan semua staff
-
-	// 1. Buat Anak Gudang (Repository)
+	// Dependency Injection - Product
 	productRepo := repositories.NewProductRepository(db)
-	fmt.Println("✅ Repository created (Anak Gudang siap)")
+	fmt.Println("✅ Product Repository created")
 
-	// 2. Buat Koki (Service) dan kenalkan dengan Anak Gudang
 	productService := services.NewProductService(productRepo)
-	fmt.Println("✅ Service created (Koki siap)")
+	fmt.Println("✅ Product Service created")
 
-	// 3. Buat Pelayan (Handler) dan kenalkan dengan Koki
 	productHandler := handlers.NewProductHandler(productService)
-	fmt.Println("✅ Handler created (Pelayan siap)")
+	fmt.Println("✅ Product Handler created")
 
-	// ===== BAGIAN 4: SETUP ROUTES (JALUR PESANAN) =====
-	// Ini seperti papan menu di restoran
+	// Dependency Injection - Category
+	categoryRepo := repositories.NewCategoryRepository(db)
+	fmt.Println("✅ Category Repository created")
+
+	categoryService := services.NewCategoryService(categoryRepo)
+	fmt.Println("✅ Category Service created")
+
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
+	fmt.Println("✅ Category Handler created")
+
+	// Setup routes - Product
 	http.HandleFunc("/api/produk", productHandler.HandleProducts)
 	http.HandleFunc("/api/produk/", productHandler.HandleProductByID)
+
+	// Setup routes - Category
+	http.HandleFunc("/api/kategori", categoryHandler.HandleCategories)
+	http.HandleFunc("/api/kategori/", categoryHandler.HandleCategoryByID)
+
 	fmt.Println("✅ Routes configured")
 
-	// ===== BAGIAN 5: JALANKAN SERVER =====
-	// Buka restoran untuk pelanggan!
+	// Start server
 	addr := "0.0.0.0:" + config.Port
-	fmt.Println("\n🚀 Server running di", addr)
+	fmt.Println("🚀 Server running di", addr)
 	fmt.Println("📝 Endpoints:")
+	fmt.Println("   Product Endpoints:")
 	fmt.Println("   GET    /api/produk      → Lihat semua produk")
 	fmt.Println("   POST   /api/produk      → Tambah produk baru")
 	fmt.Println("   GET    /api/produk/{id} → Lihat satu produk")
 	fmt.Println("   PUT    /api/produk/{id} → Update produk")
 	fmt.Println("   DELETE /api/produk/{id} → Hapus produk")
 	fmt.Println()
+	fmt.Println("   Category Endpoints:")
+	fmt.Println("   GET    /api/kategori      → Lihat semua kategori")
+	fmt.Println("   POST   /api/kategori      → Tambah kategori baru")
+	fmt.Println("   GET    /api/kategori/{id} → Lihat satu kategori")
+	fmt.Println("   PUT    /api/kategori/{id} → Update kategori")
+	fmt.Println("   DELETE /api/kategori/{id} → Hapus kategori")
+	fmt.Println()
 
 	err = http.ListenAndServe(addr, nil)
 	if err != nil {
-		fmt.Println("❌ Gagal running server:", err)
+		fmt.Println("gagal running server", err)
 	}
 }
